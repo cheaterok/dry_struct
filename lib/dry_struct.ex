@@ -32,11 +32,20 @@ defmodule DryStruct do
   end
 
   defmacro drystruct(options \\ [], [do: ast] = _block) do
-    fields = parse_fields(ast, options)
+    global_enforce? = Keyword.get(options, :enforce, false)
 
-    enforced_keys = get_enforced_keys(fields)
-    defstruct_kwl = form_defstruct_list(fields)
-    type_kwl = form_types_keyword_list(fields)
+    fields =
+      ast
+      |> block_to_field_asts()
+      |> Enum.map(&field_ast_to_field(&1, global_enforce?))
+
+    enforced_keys =
+      fields
+      |> Stream.filter(&enforce_field?/1)
+      |> Enum.map(& &1.name)
+
+    defstruct_kwl = Enum.map(fields, &field_to_defstruct_key/1)
+    type_kwl = Enum.map(fields, &field_to_type_keyword/1)
 
     type_ast = quote do: t :: %__MODULE__{unquote_splicing(type_kwl)}
     spec_ast =
@@ -68,88 +77,70 @@ defmodule DryStruct do
     ast
   end
 
-  @spec parse_fields(Macro.t(), Keyword.t()) :: [Field.t()]
-  defp parse_fields(ast, global_options) do
-    field_asts =
-      case ast do
-        {:__block__, _context, fields} -> fields
-        [] -> []
-        field -> [field]
+  @spec block_to_field_asts(Macro.t()) :: [Macro.t()]
+  defp block_to_field_asts({:__block__, _context, fields}), do: fields
+  defp block_to_field_asts([]), do: []
+  defp block_to_field_asts(field), do: [field]
+
+  @spec field_ast_to_field(Macro.t(), boolean()) :: Field.t()
+  defp field_ast_to_field({:field, _context, field_ast}, global_enforce?) do
+    [name, type, options] =
+      case field_ast do
+        [name, type] -> [name, type, []]
+        [_name, _type, _options] = v -> v
       end
 
-    global_enforce? = Keyword.get(global_options, :enforce, false)
+    {default, default_set?} =
+      case Keyword.fetch(options, :default) do
+        {:ok, value} -> {value, true}
+        :error -> {nil, false}
+      end
 
-    field_ast_to_field = fn {:field, _context, field_ast} ->
-      [name, type, options] =
-        case field_ast do
-          [name, type] -> [name, type, []]
-          [_name, _type, _options] = v -> v
-        end
+    %Field{
+      name: name,
+      type: type,
+      default: default,
+      default_set?: default_set?,
+      enforce?: Keyword.get(options, :enforce, global_enforce?)
+    }
+  end
 
-      {default, default_set?} =
-        case Keyword.fetch(options, :default) do
-          {:ok, value} -> {value, true}
-          :error -> {nil, false}
-        end
+  @spec enforce_field?(Field.t()) :: boolean()
+  defp enforce_field?(%Field{default_set?: false, enforce?: true}), do: true
+  defp enforce_field?(_field), do: false
 
-      %Field{
-        name: name,
-        type: type,
-        default: default,
-        default_set?: default_set?,
-        enforce?: Keyword.get(options, :enforce, global_enforce?)
-      }
+  @spec field_to_defstruct_key(Field.t(v)) :: {atom(), v} | atom() when v: any()
+  defp field_to_defstruct_key(field) do
+    if field.default_set? do
+      {field.name, field.default}
+    else
+      field.name
     end
-
-    Enum.map(field_asts, field_ast_to_field)
   end
 
-  @spec get_enforced_keys([Field.t()]) :: [atom()]
-  defp get_enforced_keys(fields) do
-    fields
-    |> Stream.filter(& not &1.default_set? and &1.enforce?)
-    |> Enum.map(& &1.name)
-  end
+  @spec field_to_type_keyword(Field.t()) :: {atom(), Macro.t()}
+  defp field_to_type_keyword(field) do
+    specs =
+      case field.type do
+        {:|, _, specs} -> specs
+        spec -> [spec]
+      end
 
-  @spec form_defstruct_list([Field.t(v)]) :: [atom() | {atom(), v}] when v: any()
-  defp form_defstruct_list(fields) do
-    Enum.map(fields, fn field ->
-      if field.default_set? do
-        {field.name, field.default}
+    signature_has_nil? = Enum.member?(specs, nil)
+
+    needs_nil_in_signature? = (
+      not field.enforce?
+      and is_nil(field.default)
+      and not signature_has_nil?
+    )
+
+    type =
+      if needs_nil_in_signature? do
+        quote do: unquote(field.type) | nil
       else
-        field.name
+        field.type
       end
-    end)
-  end
 
-  @spec form_types_keyword_list([Field.t()]) :: Keyword.t(Macro.t())
-  defp form_types_keyword_list(fields) do
-    signature_has_nil? = fn type_ast ->
-      types =
-        case type_ast do
-          {:|, _, types} -> types
-          type -> [type]
-        end
-      Enum.member?(types, nil)
-    end
-
-    field_to_type_keyword = fn field ->
-      needs_nil_in_signature? = (
-        not field.enforce?
-        and is_nil(field.default)
-        and not signature_has_nil?.(field.type)
-      )
-
-      type =
-        if needs_nil_in_signature? do
-          quote do: unquote(field.type) | nil
-        else
-          field.type
-        end
-
-      {field.name, type}
-    end
-
-    Enum.map(fields, field_to_type_keyword)
+    {field.name, type}
   end
 end
