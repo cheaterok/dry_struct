@@ -6,7 +6,6 @@ defmodule DryStruct.MixProject do
       app: :dry_struct,
       version: "0.1.0",
       elixir: "~> 1.11",
-      start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer()
     ]
@@ -14,9 +13,7 @@ defmodule DryStruct.MixProject do
 
   # Run "mix help compile.app" to learn about applications.
   def application do
-    [
-      extra_applications: [:logger]
-    ]
+    []
   end
 
   # Run "mix help deps" to learn about dependencies.
