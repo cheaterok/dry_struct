@@ -25,13 +25,7 @@ defmodule DryStruct do
     @type t :: t(any())
   end
 
-  defmacro __using__([]) do
-    quote do
-      import unquote(__MODULE__), only: [drystruct: 1, drystruct: 2]
-    end
-  end
-
-  defmacro drystruct(options \\ [], [do: ast] = _block) do
+  defmacro defstruct(options \\ [], [do: ast] = _block) do
     global_enforce? = Keyword.get(options, :enforce, false)
 
     fields =

@@ -9,9 +9,9 @@ defmodule TypedStructTest do
   # Store the bytecode so we can get information from it.
   {:module, _name, bytecode, _exports} =
     defmodule TestStruct do
-      use DryStruct
+      require DryStruct
 
-      drystruct do
+      DryStruct.defstruct do
         field :int, integer()
         field :string, String.t()
         field :string_with_default, String.t(), default: "default"
@@ -23,17 +23,17 @@ defmodule TypedStructTest do
 
   {:module, _name, bytecode_opaque, _exports} =
     defmodule OpaqueTestStruct do
-      use DryStruct
+      require DryStruct
 
-      drystruct opaque: true do
+      DryStruct.defstruct opaque: true do
         field :int, integer()
       end
     end
 
   defmodule EnforcedTypedStruct do
-    use DryStruct
+    require DryStruct
 
-    drystruct enforce: true do
+    DryStruct.defstruct enforce: true do
       field :enforced_by_default, term()
       field :not_enforced, term(), enforce: false
       field :with_default, integer(), default: 1
@@ -45,9 +45,9 @@ defmodule TypedStructTest do
   end
 
   defmodule TestModule do
-    use DryStruct
+    require DryStruct
 
-    drystruct module: Struct do
+    DryStruct.defstruct module: Struct do
       field :field, term()
     end
   end
@@ -158,9 +158,9 @@ defmodule TypedStructTest do
   test "TypedStruct macros are available only in the drystruct block" do
     assert_raise CompileError, ~r"undefined function field/2", fn ->
       defmodule ScopeTest do
-        use DryStruct
+        require DryStruct
 
-        drystruct do
+        DryStruct.defstruct do
           field :in_scope, term()
         end
 
@@ -173,9 +173,9 @@ defmodule TypedStructTest do
   test "the name of a field must be an atom" do
     assert_raise ArgumentError, "struct field names must be atoms, got: 3", fn ->
       defmodule InvalidStruct do
-        use DryStruct
+        require DryStruct
 
-        drystruct do
+        DryStruct.defstruct do
           field 3, integer()
         end
       end
@@ -186,9 +186,9 @@ defmodule TypedStructTest do
   test "it is not possible to add twice a field with the same name" do
     assert_raise ArgumentError, "the field :name is already set", fn ->
       defmodule InvalidStruct do
-        use DryStruct
+        require DryStruct
 
-        drystruct do
+        DryStruct.defstruct do
           field :name, String.t()
           field :name, integer()
         end
