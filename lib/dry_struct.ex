@@ -41,34 +41,25 @@ defmodule DryStruct do
     defstruct_kwl = Enum.map(fields, &field_to_defstruct_key/1)
     type_kwl = Enum.map(fields, &field_to_type_keyword/1)
 
-    type_ast = quote do: t :: %__MODULE__{unquote_splicing(type_kwl)}
-    spec_ast =
-      if options[:opaque] do
-        quote do: @opaque unquote(type_ast)
-      else
-        quote do: @type unquote(type_ast)
-      end
+    type_mode = if options[:opaque], do: :opaque, else: :type
 
     struct_ast =
       quote do
         @enforce_keys unquote(enforced_keys)
         defstruct unquote(defstruct_kwl)
 
-        unquote(spec_ast)
+        @(unquote(type_mode)(t :: %__MODULE__{unquote_splicing(type_kwl)}))
       end
 
-    ast =
-      if module_name = options[:module] do
-        quote do
-          defmodule unquote(module_name) do
-            unquote(struct_ast)
-          end
+    if module_name = options[:module] do
+      quote do
+        defmodule unquote(module_name) do
+          unquote(struct_ast)
         end
-      else
-        struct_ast
       end
-
-    ast
+    else
+      struct_ast
+    end
   end
 
   @spec block_to_field_asts(Macro.t()) :: [Macro.t()]

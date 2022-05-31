@@ -182,20 +182,6 @@ defmodule TypedStructTest do
     end
   end
 
-  @tag :skip  # drystruct does not check duplicate fields
-  test "it is not possible to add twice a field with the same name" do
-    assert_raise ArgumentError, "the field :name is already set", fn ->
-      defmodule InvalidStruct do
-        require DryStruct
-
-        DryStruct.defstruct do
-          field :name, String.t()
-          field :name, integer()
-        end
-      end
-    end
-  end
-
   ############################################################################
   ##                                Helpers                                 ##
   ############################################################################
